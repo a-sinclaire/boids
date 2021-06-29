@@ -5,21 +5,23 @@
 #               Seems like theres some sort of bias that makes them always head up to the right
 # 11:50PM -- Still not really working. Now relies on accelerations to adjust course. I think in order to fix
 #               it I will need to look at some example code. Problem for another day
-
+# 3:00PM -- Started working again around 3:00PM Jun 29 2021
+# 3:35PM -- Fixed vision system and turning
 
 import pygame
 import numpy as np
 import random
 from collections import namedtuple
 
+DRAW_VISION = False
 WIDTH = 500
 HEIGHT = 500
-N_AGENTS = 30
-SIGHT_R = 90
-SEPARATION_D = 20
+N_AGENTS = 20
+SIGHT_R = 45
+SEPARATION_D = SIGHT_R * 0.33
 MAX_VEL = 1.5
 VELOCITY = MAX_VEL
-MAX_STEERING_FORCE = 0.02
+MAX_STEERING_FORCE = 0.025
 SIGHT_ANG = (2*np.pi)*0.33
 FPS = 60
 Point = namedtuple('Point', 'x y')
@@ -45,6 +47,7 @@ class Agent:
         self.color = (255, 255, 255)
         self.sight_r = sight_r
         self.sight_ang = sight_ang
+        self.sees = []
 
     def update(self):
         # update vel based on acceleration
@@ -78,19 +81,26 @@ class Agent:
 
     def apply_force(self, force):
         self.acc = addVectors(self.acc, force)
-        # self.acc = Vector(self.acc.ang, MAX_VEL)
+        self.acc = Vector(self.acc.ang, MAX_VEL*MAX_STEERING_FORCE)
 
     def can_see(self, other):
         dif_ang = np.arctan2(self.pos.y-other.pos.y, other.pos.x-self.pos.x)
+        min_ang = (-self.vel.ang-self.sight_ang/2.0)
+        max_ang = (-self.vel.ang+self.sight_ang/2.0)
         # print("###")
         # print((360+(180*-self.vel.ang/np.pi))%360)
-        # print(180*dif_ang/np.pi)
-        # print(180*(((np.pi*2)+(-self.vel.ang-self.sight_ang/2.0))%(np.pi*2))/np.pi)
-        # print(180 * (((np.pi*2)+(-self.vel.ang+self.sight_ang/2.0))%(np.pi*2)) / np.pi)
+        # print(180*(dif_ang)/np.pi)
+        # print(180*(min_ang)/np.pi)
+        # print(180 * (max_ang) / np.pi)
         return np.sqrt(np.power((other.pos.x - self.pos.x), 2) + np.power((other.pos.y - self.pos.y), 2)) < self.sight_r and \
-            (((np.pi*2)+(-self.vel.ang-self.sight_ang/2.0))%(np.pi*2) < ((np.pi*2)+dif_ang)%(np.pi*2) < ((np.pi*2)+(-self.vel.ang+self.sight_ang/2.0))%(np.pi*2))
+               (min_ang < dif_ang < max_ang)
 
-    def cohesion(self, sees):
+    def clear_sees(self):
+        # self.sees.clear()
+        pass
+
+    def cohesion(self):
+        sees = self.sees
         if len(sees) == 0:
             return
         x = 0
@@ -106,7 +116,8 @@ class Agent:
         mag = MAX_VEL
         self.apply_force(Vector(ang, mag))
 
-    def alignment(self, sees):
+    def alignment(self):
+        sees = self.sees
         if len(sees) == 0:
             return
         avg_heading = 0
@@ -117,7 +128,8 @@ class Agent:
         desiredVel = Vector(avg_heading, MAX_VEL)
         self.apply_force(desiredVel)
 
-    def separation(self, sees):
+    def separation(self):
+        sees = self.sees
         if len(sees) == 0:
             return
         best_dist = 9999
@@ -152,26 +164,34 @@ while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_s:
+                DRAW_VISION = not DRAW_VISION
 
     screen.fill((0, 0, 0))
 
     for agent in agents:
-        sees = []
         for agent2 in agents:
             if agent == agent2:
                 continue
             if agent.can_see(agent2):
-                sees.append(agent2)
-        agent.cohesion(sees)
-        agent.alignment(sees)
-        agent.separation(sees)
+                agent.sees.append(agent2)
+                if DRAW_VISION:
+                    agent2.color = (255, 0, 0)
 
     for agent in agents:
         agent.wiggle()
+        agent.cohesion()
+        agent.alignment()
+        agent.separation()
         agent.update()
+        agent.clear_sees()
+
+    for agent in agents:
         agent.draw(pygame, screen)
-        # agent.draw_sight(pygame, screen)
-        agent.color = (255,255,255)
+        if DRAW_VISION:
+            agent.draw_sight(pygame, screen)
+            agent.color = (255, 255, 255)
 
     pygame.display.flip()
 
