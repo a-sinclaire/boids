@@ -7,19 +7,21 @@
 #               it I will need to look at some example code. Problem for another day
 # 3:00PM -- Started working again around 3:00PM Jun 29 2021
 # 3:35PM -- Fixed vision system and turning
+# 3:51PM -- can now toggle sight and have follow cursor
 
 import pygame
 import numpy as np
 import random
 from collections import namedtuple
 
+FOLLOW_CURSOR = False
 DRAW_VISION = False
 WIDTH = 500
 HEIGHT = 500
-N_AGENTS = 20
+N_AGENTS = 25
 SIGHT_R = 45
-SEPARATION_D = SIGHT_R * 0.33
-MAX_VEL = 1.5
+SEPARATION_D = SIGHT_R * 0.5
+MAX_VEL = 2.0
 VELOCITY = MAX_VEL
 MAX_STEERING_FORCE = 0.025
 SIGHT_ANG = (2*np.pi)*0.33
@@ -99,6 +101,11 @@ class Agent:
         # self.sees.clear()
         pass
 
+    def steer_towards(self, point):
+        x, y = point
+        ang = np.arctan2(y - self.pos.y, x - self.pos.x)
+        self.apply_force(Vector(ang, MAX_VEL))
+
     def cohesion(self):
         sees = self.sees
         if len(sees) == 0:
@@ -167,6 +174,10 @@ while running:
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_s:
                 DRAW_VISION = not DRAW_VISION
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            FOLLOW_CURSOR = True
+        if event.type == pygame.MOUSEBUTTONUP:
+            FOLLOW_CURSOR = False
 
     screen.fill((0, 0, 0))
 
@@ -184,6 +195,8 @@ while running:
         agent.cohesion()
         agent.alignment()
         agent.separation()
+        if FOLLOW_CURSOR:
+            agent.steer_towards(pygame.mouse.get_pos())
         agent.update()
         agent.clear_sees()
 
